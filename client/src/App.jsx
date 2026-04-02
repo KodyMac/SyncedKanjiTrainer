@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from './context/SocketContext';
+import Canvas from './components/Canvas';
 
 export default function App() {
   const { socket, isConnected } = useSocket();
@@ -92,9 +93,7 @@ export default function App() {
             ))}
           </ul>
 
-          <p style={{ color: '#aaa', fontSize: 13, marginTop: 32 }}>
-            Canvas coming in Phase 3...
-          </p>
+          <Canvas roomId={roomId} />
         </div>
       )}
     </div>

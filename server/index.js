@@ -45,6 +45,21 @@ io.on('connection',(socket) => {
             io.to(roomId).emit('room_users', rooms[roomId]);
         }
     });
+
+    //client will send this when drawing on canvas
+    socket.on('draw', ({ roomId, x0, y0, x1, y1, color, lineWidth }) => {
+        //broadcast to everyone in room besides sender
+        socket.to(roomId).emit('draw', { x0,y0,x1,y1,color,lineWidth });
+    });
+
+    //client will send this when lifting mouse
+    socket.on('stroke_end', ({ roomId }) => {
+        socket.to(roomId).emit('stroke_end');
+    });
+
+    socket_on('clear_canvas', ({ roomId }) => {
+        socket.to(roomId).emit('clear_canvas');
+    });
 });
 
 app.get('/health', (req, res) => {
