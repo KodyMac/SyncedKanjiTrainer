@@ -1,3 +1,11 @@
+require('dotenv').config();
+const { Redis } = require('@upstash/redis');
+
+const redis = new Redis({
+    url: process.env.UPSTASH_RESI_REST_URL,
+    toke: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -16,34 +24,47 @@ const io = new Server(httpServer, {
     }
 });
 
-//track connected users using JS object
-const rooms = {};
 
 io.on('connection',(socket) => {
     console.log(`User connected: ${socket.id}`);
 
     //client will send this when entering a room
-    socket.on('join_room', ({roomId, username }) => {
+    socket.on('join_room', async ({roomId, username }) => {
         socket.join(roomId); //put socket in named group
 
-        //add user to room tracker
-        if(!rooms[roomId]) rooms[roomId] = [];
-        rooms[roomId].push({id: socket.id, username});
+        //store user is redis hash with roomId as key and array of users as value
+        await redis.hset(`room:${roomId}:users`, {
+            [socket.id]: username
+        });
 
         console.log(`${username} joined room: ${roomId}`);
+        const usersHash = await redis.hgetall(`room:${roomId}:users`);
+        //convert hash to array of {id, username} for frontend
+        const users = Object.entries(usersHash).map(([id, username]) => ({ id, username }));
 
         //notify room
         io.to(roomId).emit('room_users', rooms[roomId]);
+        //track which room this socket is in for disconnect cleanup
+        await redis.set(`socket:${socket.id}:room`, roomId);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         console.log(`User disconnected: ${socket.id}`);
-        //remove user from room
-        for (const roomId in rooms) {
-            rooms[roomId] = rooms[roomId].filter(user => user.id !== socket.id);
-            //notify room of updated users
-            io.to(roomId).emit('room_users', rooms[roomId]);
-        }
+        //find which room this socket was in
+        const roomId = await redis.get(`socket:${socket.id}:room`);
+        if(!roomId) return; //not in a room
+        
+        //remove from room user hash
+        await redis.hdel(`room:${roomId}:users`, socket.id);
+
+        //clean up room tracking
+        await redis.del(`socket:${socket.id}:room`);
+
+        //send updated user list to room
+        const usersHash = await redis.hgetall(`room:${roomId}:users`) || {};
+        const users = Object.entries(usersHash).map(([id, username]) => ({ id, username }));
+        io.to(roomId).emit('room_users', users);
+        
     });
 
     //client will send this when drawing on canvas
