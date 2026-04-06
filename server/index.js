@@ -1,9 +1,8 @@
-require('dotenv').config();
 const { Redis } = require('@upstash/redis');
 
 const redis = new Redis({
-    url: process.env.UPSTASH_RESI_REST_URL,
-    toke: process.env.UPSTASH_REDIS_REST_TOKEN,
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 const express = require('express');
@@ -43,11 +42,19 @@ io.on('connection',(socket) => {
         const users = Object.entries(usersHash).map(([id, username]) => ({ id, username }));
 
         //notify room
-        io.to(roomId).emit('room_users', rooms[roomId]);
+        io.to(roomId).emit('room_users', users);
 
         const strokes = await redis.lrange(`room:${roomId}:strokes`,0,-1);
         if(strokes.length > 0) {
-            const parsed = strokes.map(s=>JSON.parse(s));
+            const parsed = strokes
+                .map(s => {
+                    try {
+                        return typeof s === 'string' ? JSON.parse(s) : s;
+                    } catch (e) {
+                        return null; //skip corrupted strokes
+                    }
+                })
+                .filter(Boolean); //remove nulls
             socket.emit('replay_strokes', parsed);
         }
         //track which room this socket is in for disconnect cleanup
@@ -86,7 +93,7 @@ io.on('connection',(socket) => {
         socket.to(roomId).emit('stroke_end');
     });
 
-    socket_on('clear_canvas', async ({ roomId }) => {
+    socket.on('clear_canvas', async ({ roomId }) => {
         await redis.del(`room:${roomId}:strokes`);
         socket.to(roomId).emit('clear_canvas');
     });
