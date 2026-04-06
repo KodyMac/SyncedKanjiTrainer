@@ -8,16 +8,24 @@ export default function App() {
   const [roomId, setRoomId] = useState('');
   const [hasJoined, setHasJoined] = useState('');
   const [roomUsers, setRoomUsers] = useState([]);
+  const [userColor, setUserColor] = useState('#000000');
 
   useEffect(() => {
     if(!socket) return;
+
+    socket.on('assigned_color', (color) => { 
+      setUserColor(color);
+    }); 
 
     //listen for updated user list
     socket.on('room_users', (users) => {
       setRoomUsers(users);
     });
 
-    return () => socket.off('room_users');
+    return () => {
+      socket.off('room_users');
+      socket.off('assigned_color');
+    };
   }, [socket]);
   
   function joinRoom() {
@@ -79,21 +87,24 @@ export default function App() {
 
           <h3>Users in this room ({roomUsers.length})</h3>
           <ul style={{ listStyle: 'none', padding: 0 }}>
-            {roomUsers.map(user => (
-              <li key={user.id} style={{
-                padding: '10px 14px', marginBottom: 8, borderRadius: 8,
-                background: user.id === socket.id ? '#eff6ff' : '#f9fafb',
-                border: '1px solid #e5e7eb',
-                display: 'flex', alignItems: 'center', gap: 8
-              }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-                {user.username}
-                {user.id === socket.id && <span style={{ color: '#3b82f6', fontSize: 12 }}>(you)</span>}
-              </li>
+          {roomUsers.map(user => (
+           <li key={user.id} style={{
+              padding: '10px 14px', marginBottom: 8, borderRadius: 8,
+              background: user.id === socket.id ? '#eff6ff' : '#f9fafb',
+              border: '1px solid #e5e7eb',
+              display: 'flex', alignItems: 'center', gap: 8
+           }}>
+              <div style={{ 
+                width: 12, height: 12, borderRadius: '50%', 
+                background: user.color  // ← use their assigned color
+               }} />
+               {user.username}
+               {user.id === socket.id && <span style={{ color: '#3b82f6', fontSize: 12 }}>(you)</span>}
+             </li>
             ))}
           </ul>
 
-          <Canvas roomId={roomId} />
+          <Canvas roomId={roomId} userColor={userColor} />
         </div>
       )}
     </div>

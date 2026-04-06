@@ -5,6 +5,16 @@ const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
+const USER_COLORS = [
+    '#e63946',
+    '#2a9d8f',
+    '#6a4c93',
+    '#f4a261',
+    '#457b9d',
+    '#2d6a4f',
+    '#e76f51',
+]
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -31,15 +41,23 @@ io.on('connection',(socket) => {
     socket.on('join_room', async ({roomId, username }) => {
         socket.join(roomId); //put socket in named group
 
+        const existingUsers = await redis.hgetall(`room:${roomId}:users`) || {};
+        const colorIndex = Object.keys(existingUsers).length % USER_COLORS.length;
+        const color = USER_COLORS[colorIndex];
+
         //store user is redis hash with roomId as key and array of users as value
         await redis.hset(`room:${roomId}:users`, {
-            [socket.id]: username
+            [socket.id]: JSON.stringify({username, color })
         });
 
+        socket.emit('assigned_color', color); //tell user their color
         console.log(`${username} joined room: ${roomId}`);
         const usersHash = await redis.hgetall(`room:${roomId}:users`);
         //convert hash to array of {id, username} for frontend
-        const users = Object.entries(usersHash).map(([id, username]) => ({ id, username }));
+        const users = Object.entries(usersHash).map(([id, data]) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            return { id, username: parsed.username, color: parsed.color };
+        });
 
         //notify room
         io.to(roomId).emit('room_users', users);
@@ -75,7 +93,10 @@ io.on('connection',(socket) => {
 
         //send updated user list to room
         const usersHash = await redis.hgetall(`room:${roomId}:users`) || {};
-        const users = Object.entries(usersHash).map(([id, username]) => ({ id, username }));
+        const users = Object.entries(usersHash).map(([id, data]) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            return { id, username: parsed.username, color: parsed.color };
+        });
         io.to(roomId).emit('room_users', users);
         
     });

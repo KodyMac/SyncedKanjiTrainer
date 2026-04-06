@@ -1,22 +1,28 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../context/SocketContext';
 
-export default function Canvas({ roomId }) {
+export default function Canvas({ roomId, userColor }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const isDrawing = useRef(false);
     const lastPos = useRef({ x: 0, y:0 });
+    const [brushSize, setBrushSize] = useState(4);
+    const [brushStyle, setBrushStyle] = useState('round');
 
     //draw line on canvas
-    const drawSegment = useCallback((ctx, x0, y0, x1,y1,color,lineWidth) => {
+    const drawSegment = useCallback((ctx, x0, y0, x1,y1,color,lineWidth, style) => {
         if(!ctx) return;
         ctx.beginPath();
         ctx.moveTo(x0,y0);
         ctx.lineTo(x1,y1);
         ctx.strokeStyle = color;
-        ctx.lineWidth = lineWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.lineWidth = style === 'calligraphy' ? lineWidth * 2 : lineWidth;
+        ctx.lineCap = style === 'square' ? 'square' : 'round';;
+        ctx.lineJoin = style === 'square' ? 'square' : 'round';
+        if (style === 'calligraphy') {
+            const angle = Math.atan2(y1 - y0, x1-x0);
+            ctx.lineWidth = lineWidth + Math.abs(Math.sin(angle)) * lineWidth * 2;
+        }
         ctx.stroke();
     }, []);
 
@@ -73,13 +79,14 @@ export default function Canvas({ roomId }) {
         const currentPos = getPos(e);
         const{ x:x0,y:y0 } = lastPos.current;
         const {x:x1,y:y1} = currentPos;
-        const color = '#1a1a2e'
-        const lineWidth = 4;
+        const color = userColor;
+        const lineWidth = brushSize;
+        
 
         //local drawing
         drawSegment(ctx, x0,y0,x1,y1,color,lineWidth);
         //send to server
-        socket.emit('draw', {roomId, x0,y0,x1,y1,color,lineWidth});
+        socket.emit('draw', {roomId, x0,y0,x1,y1,color,lineWidth: brushSize, style: brushStyle});
         lastPos.current = currentPos;
     }, [getPos, drawSegment, socket, roomId]);
 
@@ -90,7 +97,47 @@ export default function Canvas({ roomId }) {
     }, [socket, roomId]);
 
     return (
+        
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16}}>
+            
+            {/* Brush controls */}
+<div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+  
+  {/* Color swatch showing your assigned color */}
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ width: 24, height: 24, borderRadius: '50%', background: userColor, border: '2px solid #e5e7eb' }} />
+    <span style={{ fontSize: 13, color: '#666' }}>Your color</span>
+  </div>
+
+  {/* Brush size */}
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <span style={{ fontSize: 13, color: '#666' }}>Size</span>
+    {[2, 4, 8, 14].map(size => (
+      <button key={size} onClick={() => setBrushSize(size)} style={{
+        width: size + 16, height: size + 16,
+        borderRadius: '50%', border: brushSize === size ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+        background: brushSize === size ? '#eff6ff' : 'white',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        <div style={{ width: size, height: size, borderRadius: '50%', background: userColor }} />
+      </button>
+    ))}
+  </div>
+
+  {/* Brush style */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['round', 'square', 'calligraphy'].map(style => (
+                  <button key={style} onClick={() => setBrushStyle(style)} style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: 12,
+                    border: brushStyle === style ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                    background: brushStyle === style ? '#eff6ff' : 'white',
+                    cursor: 'pointer', color: '#444', textTransform: 'capitalize'
+                  }}>
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
             <canvas
                 ref={canvasRef}
                 width={600}
