@@ -44,6 +44,12 @@ io.on('connection',(socket) => {
 
         //notify room
         io.to(roomId).emit('room_users', rooms[roomId]);
+
+        const strokes = await redis.lrange(`room:${roomId}:strokes`,0,-1);
+        if(strokes.length > 0) {
+            const parsed = strokes.map(s=>JSON.parse(s));
+            socket.emit('replay_strokes', parsed);
+        }
         //track which room this socket is in for disconnect cleanup
         await redis.set(`socket:${socket.id}:room`, roomId);
     });
@@ -68,8 +74,10 @@ io.on('connection',(socket) => {
     });
 
     //client will send this when drawing on canvas
-    socket.on('draw', ({ roomId, x0, y0, x1, y1, color, lineWidth }) => {
-        //broadcast to everyone in room besides sender
+    socket.on('draw', async ({ roomId, x0, y0, x1, y1, color, lineWidth }) => {
+        //append stroke to redis list for this room
+        await redis.rpush(`room:${roomId}:strokes`, JSON.stringify({ x0, y0, x1, y1, color, lineWidth }));
+        
         socket.to(roomId).emit('draw', { x0,y0,x1,y1,color,lineWidth });
     });
 
@@ -78,7 +86,8 @@ io.on('connection',(socket) => {
         socket.to(roomId).emit('stroke_end');
     });
 
-    socket_on('clear_canvas', ({ roomId }) => {
+    socket_on('clear_canvas', async ({ roomId }) => {
+        await redis.del(`room:${roomId}:strokes`);
         socket.to(roomId).emit('clear_canvas');
     });
 });

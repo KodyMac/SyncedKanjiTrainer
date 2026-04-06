@@ -46,6 +46,13 @@ export default function Canvas({ roomId }) {
             ctx.clearRect(0,0,600,500);
         });
 
+        socket.on('replay_strokes', (strokes) => {
+            const ctx = canvasRef.current.getContext('2d');
+            strokes.forEach(({ x0, y0,x1,y1,color,lineWidth }) => {
+                drawSegment(ctx,x0,y0,x1,y1,color,lineWidth);
+            });
+        });
+
         return () => {
             socket.off('draw');
             socket.off('clear_canvas');
