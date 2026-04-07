@@ -120,6 +120,58 @@ io.on('connection',(socket) => {
     });
 });
 
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+app.get('/api/kanji/search', async (req, res) => {
+    const { q } = req.query;
+    if(!q) return res.status(400).json({ error: 'Query required' });
+
+    try {
+        const response = await fetch(
+            `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(q)}`);
+            const data = await response.json();
+
+            //extract kanji from rewsults
+            const kanji = [];
+            for (const word of data.data.slice(0,20)) {
+                for(const reading of word.japanese) {
+                    if(reading.word) {
+                        for (const char of reading.word) {
+                            //only include kanji
+                            if(char.match(/[\u4e00-\u9faf]/) && !kanji.find(k => k.char === char)) {
+                                kanji.push({
+                                    char,
+                                    meaning: word.senses[0].english_definitions.slice(0,3).join(', ')
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            res.json(kanji.slice(0,10));
+        } catch (err) {
+            res.status(500).json({error: 'Search failed' });
+        }
+});
+
+app.get('/api/kanji/strokes/:char', async (req, res) => {
+    const char = req.params.char;
+    const codePoint = char.codePointAt(0).toString(16).padStart(5, '0');
+
+    try {
+        const response = await fetch(
+            `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${codePoint}.svg`
+        );
+        if (!response.ok) return res.status(404).json({ error: 'Kanji not found' });
+
+        const svg = await response.text();
+        res.type('text/plain').send(svg);
+    } catch (err) {
+        res.status(500).json({error: 'Failed to fetch stroke data' });
+    }
+}); 
+
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', connections: io.engine.clientsCount });
 });
