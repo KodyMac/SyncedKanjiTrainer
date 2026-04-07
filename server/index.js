@@ -102,11 +102,11 @@ io.on('connection',(socket) => {
     });
 
     //client will send this when drawing on canvas
-    socket.on('draw', async ({ roomId, x0, y0, x1, y1, color, lineWidth }) => {
+    socket.on('draw', async ({ roomId, x0, y0, x1, y1, color, lineWidth, style }) => {
         //append stroke to redis list for this room
-        await redis.rpush(`room:${roomId}:strokes`, JSON.stringify({ x0, y0, x1, y1, color, lineWidth }));
+        await redis.rpush(`room:${roomId}:strokes`, JSON.stringify({ x0, y0, x1, y1, color, lineWidth, style }));
         
-        socket.to(roomId).emit('draw', { x0,y0,x1,y1,color,lineWidth });
+        socket.to(roomId).emit('draw', { x0,y0,x1,y1,color,lineWidth, style });
     });
 
     //client will send this when lifting mouse

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 
 export default function Canvas({ roomId, userColor }) {
@@ -12,18 +12,44 @@ export default function Canvas({ roomId, userColor }) {
     //draw line on canvas
     const drawSegment = useCallback((ctx, x0, y0, x1,y1,color,lineWidth, style) => {
         if(!ctx) return;
-        ctx.beginPath();
-        ctx.moveTo(x0,y0);
-        ctx.lineTo(x1,y1);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = style === 'calligraphy' ? lineWidth * 2 : lineWidth;
-        ctx.lineCap = style === 'square' ? 'square' : 'round';;
-        ctx.lineJoin = style === 'square' ? 'square' : 'round';
-        if (style === 'calligraphy') {
-            const angle = Math.atan2(y1 - y0, x1-x0);
-            ctx.lineWidth = lineWidth + Math.abs(Math.sin(angle)) * lineWidth * 2;
+        console.log('drawsegment called with style:', style, 'lineWidth:', lineWidth);
+        ctx.save();
+
+        if (style === 'calligraphy') { //flat angled brush, thick vertical, thin horizontal
+            const angle = Math.atan2(y1-y0, x1-x0);
+            const thickness = lineWidth * 3;
+
+            ctx.beginPath();
+            ctx.moveTo(x0,y0);
+            ctx.lineTo(x1,y1);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = thickness * Math.abs(Math.sin(angle + Math.PI / 4)) + lineWidth * 0.5;
+            ctx.lineCap = 'butt';
+            ctx.lineJoin = 'miter';
+            ctx.globalAlpha = 0.9;
+            ctx.stroke();
+        } else if (style === 'square') { //marker style, thick flat edges
+            ctx.beginPath();
+            ctx.moveTo(x0,y0);
+            ctx.lineTo(x1,y1);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth * 2.5;
+            ctx.lineCap = 'square';
+            ctx.lineJoin = 'miter';
+            ctx.globalAlpha = 0.6; //slightly transparent for marker effect
+            ctx.stroke();
+        } else { //default to round brush
+            ctx.beginPath();
+            ctx.moveTo(x0,y0);
+            ctx.lineTo(x1,y1);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.globalAlpha = 1;
+            ctx.stroke();
         }
-        ctx.stroke();
+        ctx.restore();
     }, []);
 
     //get mouse position relative to canvas
@@ -42,9 +68,9 @@ export default function Canvas({ roomId, userColor }) {
     //listen for draw events from other users (server)
     useEffect(() => {
         if(!socket) return;
-        socket.on('draw', ({ x0,y0,x1,y1,color,lineWidth }) => {
+        socket.on('draw', ({ x0,y0,x1,y1,color,lineWidth, style }) => {
             const ctx = canvasRef.current.getContext('2d');
-            drawSegment(ctx, x0,y0,x1,y1,color,lineWidth);
+            drawSegment(ctx, x0,y0,x1,y1,color,lineWidth, style);
         });
 
         socket.on('clear_canvas', () => {
@@ -54,14 +80,15 @@ export default function Canvas({ roomId, userColor }) {
 
         socket.on('replay_strokes', (strokes) => {
             const ctx = canvasRef.current.getContext('2d');
-            strokes.forEach(({ x0, y0,x1,y1,color,lineWidth }) => {
-                drawSegment(ctx,x0,y0,x1,y1,color,lineWidth);
+            strokes.forEach(({ x0, y0,x1,y1,color,lineWidth, style }) => {
+                drawSegment(ctx,x0,y0,x1,y1,color,lineWidth, style);
             });
         });
 
         return () => {
             socket.off('draw');
             socket.off('clear_canvas');
+            socket.off('replay_strokes');
         };
     }, [socket, drawSegment]);
 
@@ -84,11 +111,11 @@ export default function Canvas({ roomId, userColor }) {
         
 
         //local drawing
-        drawSegment(ctx, x0,y0,x1,y1,color,lineWidth);
+        drawSegment(ctx, x0,y0,x1,y1,color,lineWidth, brushStyle);
         //send to server
         socket.emit('draw', {roomId, x0,y0,x1,y1,color,lineWidth: brushSize, style: brushStyle});
         lastPos.current = currentPos;
-    }, [getPos, drawSegment, socket, roomId]);
+    }, [getPos, drawSegment, socket, roomId, brushSize, brushStyle, userColor]);
 
     const stopDrawing = useCallback(() => {
         if(!isDrawing.current) return;
