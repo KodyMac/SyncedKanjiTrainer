@@ -1,4 +1,5 @@
 const { Redis } = require('@upstash/redis');
+const axios = require('axios');
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
@@ -118,18 +119,20 @@ io.on('connection',(socket) => {
         await redis.del(`room:${roomId}:strokes`);
         socket.to(roomId).emit('clear_canvas');
     });
-});
 
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+    socket.on('stroke_advance', ({ roomId, currentStroke }) => {
+        socket.to(roomId).emit('stroke_advance', {currentStroke });
+    });
+});
 
 app.get('/api/kanji/search', async (req, res) => {
     const { q } = req.query;
     if(!q) return res.status(400).json({ error: 'Query required' });
 
     try {
-        const response = await fetch(
+        const response = await axios.get(
             `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(q)}`);
-            const data = await response.json();
+            const data = response.data;
 
             //extract kanji from rewsults
             const kanji = [];
@@ -150,6 +153,7 @@ app.get('/api/kanji/search', async (req, res) => {
             }
             res.json(kanji.slice(0,10));
         } catch (err) {
+            console.error('Search error:', err.message);
             res.status(500).json({error: 'Search failed' });
         }
 });
@@ -159,12 +163,10 @@ app.get('/api/kanji/strokes/:char', async (req, res) => {
     const codePoint = char.codePointAt(0).toString(16).padStart(5, '0');
 
     try {
-        const response = await fetch(
+        const response = await axios.get(
             `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${codePoint}.svg`
         );
-        if (!response.ok) return res.status(404).json({ error: 'Kanji not found' });
-
-        const svg = await response.text();
+        
         res.type('text/plain').send(svg);
     } catch (err) {
         res.status(500).json({error: 'Failed to fetch stroke data' });

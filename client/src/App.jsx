@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from './context/SocketContext';
 import Canvas from './components/Canvas';
+import KanjiSearch from './components/KanjiSearch';
 
 export default function App() {
   const { socket, isConnected } = useSocket();
@@ -9,6 +10,7 @@ export default function App() {
   const [hasJoined, setHasJoined] = useState('');
   const [roomUsers, setRoomUsers] = useState([]);
   const [userColor, setUserColor] = useState('#000000');
+  const [selectedKanji, setSelectedKanji] = useState(null);
 
   useEffect(() => {
     if(!socket) return;
@@ -22,9 +24,14 @@ export default function App() {
       setRoomUsers(users);
     });
 
+    socket.on('kanji_selected', ({ char }) => {
+      setSelectedKanji(char);
+    });
+
     return () => {
       socket.off('room_users');
       socket.off('assigned_color');
+      socket.off('kanji_selected');
     };
   }, [socket]);
   
@@ -35,7 +42,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: 480, margin: '60px auto', padding: '0 20px' }}>
+    <div style={{ fontFamily: 'sans-serif', maxWidth: 700, margin: '60px auto', padding: '0 20px' }}>
 
       {/* Connection status indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
@@ -104,7 +111,12 @@ export default function App() {
             ))}
           </ul>
 
-          <Canvas roomId={roomId} userColor={userColor} />
+          <KanjiSearch onSelect={(char) => {
+            setSelectedKanji(char);
+            socket.emit('kanji_selected', { roomId, char });
+          }} />
+
+          <Canvas roomId={roomId} userColor={userColor} kanji={selectedKanji} />
         </div>
       )}
     </div>

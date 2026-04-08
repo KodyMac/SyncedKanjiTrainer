@@ -1,3 +1,4 @@
+import { useState } from 'react';
 export default function KanjiSearch({ onSelect }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -12,7 +13,7 @@ export default function KanjiSearch({ onSelect }) {
 
         try {
             //check if input is a kanji
-            if(query.match(/^[\u4e00-\u9faf]$/)) {
+            if(query.match(/[\u4e00-\u9faf]/)) {
                 //direct kanji input
                 onSelect(query[0]);
                 setQuery('');
@@ -20,13 +21,27 @@ export default function KanjiSearch({ onSelect }) {
         }
 
         //else search by englihs
-        const res = await fetch(`http://localhost:3001/api/kanji/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(query)}`);
         const data = await res.json();
 
-        if (data.length === 0) {
+        const kanji = [];
+        for (const word of data.data.slice(0,20)) {
+            for(const reading of word.japanese) {
+                if(reading.word) {
+                    for(const char of reading.word) {
+                        if(char.match(/[\u4e00-\u9faf]/) && !kanji.find(k=>k.char===char)) {
+                            kanji.push({
+                                char, meaning: word.senses[0].english_definitions.slice(0,3).join(', ')
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        if (kanji.length === 0) {
             setError('No kanji found. Try another word.');
         } else {
-            setResults(data);
+            setResults(kanji.slice(0,10));
         }
     } catch(err) {
         setError('Search failed');

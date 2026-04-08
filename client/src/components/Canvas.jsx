@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
+import GhostCanvas from './GhostCanvas';
 
 export default function Canvas({ roomId, userColor }) {
     const { socket } = useSocket();
@@ -8,6 +9,9 @@ export default function Canvas({ roomId, userColor }) {
     const lastPos = useRef({ x: 0, y:0 });
     const [brushSize, setBrushSize] = useState(4);
     const [brushStyle, setBrushStyle] = useState('round');
+    const [kanji, setKanji] = useState(null);
+    const [currentStroke, setCurrentStroke] = useState(0);
+    const [totalStrokes, setTotalStrokes] = useState(0);
 
     //draw line on canvas
     const drawSegment = useCallback((ctx, x0, y0, x1,y1,color,lineWidth, style) => {
@@ -85,10 +89,15 @@ export default function Canvas({ roomId, userColor }) {
             });
         });
 
+        socket.on('stroke_advance', ({ currentStroke }) => {
+            setCurrentStroke(currentStroke);
+        });
+
         return () => {
             socket.off('draw');
             socket.off('clear_canvas');
             socket.off('replay_strokes');
+            socket.off('stroke_advance');
         };
     }, [socket, drawSegment]);
 
@@ -121,7 +130,15 @@ export default function Canvas({ roomId, userColor }) {
         if(!isDrawing.current) return;
         isDrawing.current = false;
         socket.emit('stroke_end', { roomId });
-    }, [socket, roomId]);
+
+        //move to next stroke if kanji is loaded
+        if (kanji && currentStroke < totalStrokes) {
+            const nextStroke = currentStroke + 1;
+            setCurrentStroke(nextStroke);
+            //move to next stroke for the whole room
+            socket.emit('stroke_advance', { roomId, currentStroke: nextStroke });
+        }
+    }, [socket, roomId, kanji, currentStroke, totalStrokes]);
 
     return (
         
@@ -165,6 +182,12 @@ export default function Canvas({ roomId, userColor }) {
                 ))}
               </div>
             </div>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+                <GhostCanvas
+                    kanji={kanji}
+                    currentSTroke={currentStroke}
+                    onStrokesLoaded={(total) => setTotalStrokes(total)}
+                />
             <canvas
                 ref={canvasRef}
                 width={600}
@@ -184,6 +207,7 @@ export default function Canvas({ roomId, userColor }) {
                     touchAction: 'none' //prevent page from scrolling on mobile
                 }}
                 />
+                </div>
                 <button
                     onClick={() => {
                         const ctx = canvasRef.current.getContext('2d');
