@@ -3,7 +3,7 @@ import { useSocket } from './context/SocketContext';
 import Canvas from './components/Canvas';
 import KanjiSearch from './components/KanjiSearch';
 
-export default function App() {
+ export default function App() {
   const { socket, isConnected } = useSocket();
   const [username, setUsername] = useState('');
   const [roomId, setRoomId] = useState('');
@@ -112,11 +112,12 @@ export default function App() {
           </ul>
 
           <KanjiSearch onSelect={(char) => {
+            console.log('Kanji selected in app:', char);
             setSelectedKanji(char);
             socket.emit('kanji_selected', { roomId, char });
           }} />
 
-          <Canvas roomId={roomId} userColor={userColor} kanji={selectedKanji} />
+          <Canvas roomId={roomId} userColor={userColor} kanjiChar={selectedKanji} />
         </div>
       )}
     </div>

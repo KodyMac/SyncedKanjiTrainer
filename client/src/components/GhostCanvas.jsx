@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
-export default function GhostCanvas({ kanji, currentStroke, onStrokesLoaded }) {
+export default function GhostCanvas({ kanjiChar, currentStroke, onStrokesLoaded }) {
     const canvasRef = useRef(null);
     const strokePathsRef = useRef([]); //store parsed svg paths for each stroke
     const [totalStrokes, setTotalStrokes] = useState(0);
@@ -32,7 +32,7 @@ export default function GhostCanvas({ kanji, currentStroke, onStrokesLoaded }) {
 
     //redraw ghost when current stroke changes
     useEffect(() => {
-        if(!kanji || !canvasRef.current) return;
+        if(!kanjiChar || !canvasRef.current) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -51,25 +51,38 @@ export default function GhostCanvas({ kanji, currentStroke, onStrokesLoaded }) {
         if(currentStroke < strokes.length) {
             drawPath(ctx, strokes[currentStroke], '#3b82f6', 0.35, 5);
         }
-    }, [kanji, currentStroke, drawPath]);
+    }, [kanjiChar, currentStroke, drawPath]);
 
     //fetch stroke data when kanji changes
     useEffect(() => {
-        if(!kanji) return;
+        if(!kanjiChar) return;
 
         strokePathsRef.current = [];
         setTotalStrokes(0);
 
-        fetch(`http://localhost:3001/api/kanji/strokes/${encodeURIComponent(kanji)}`)
-            .then(r=>r.text())
+        fetch(`http://localhost:3001/api/kanji/strokes/${encodeURIComponent(kanjiChar)}`)
+            .then(r=> r.text())
             .then(svg => {
                 const paths = parseStrokes(svg);
+                console.log('Parsed paths count:', paths.length);
                 strokePathsRef.current = paths;
                 setTotalStrokes(paths.length);
                 onStrokesLoaded(paths.length);
+
+                if(!canvasRef.current) return;
+                const ctx = canvasRef.current.getContext('2d');
+                ctx.clearRect(0,0,600,500);
+                paths.forEach((pathStr, i) => {
+                    if(i !== currentStroke) {
+                        drawPath(ctx, pathStr, '#94a3b8', i< currentStroke ? 0.15: 0.08, 3);
+                    }
+                });
+                if (currentStroke < paths.length) {
+                    drawPath(ctx, paths[currentStroke], '#3b82f6', 0.35, 5);
+                }
             })
             .catch(err => console.error('Failed to load kanji strokes:', err));
-    }, [kanji, parseStrokes, onStrokesLoaded]);
+    }, [kanjiChar, parseStrokes, onStrokesLoaded]);
 
     return (
         <canvas

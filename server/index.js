@@ -131,7 +131,15 @@ app.get('/api/kanji/search', async (req, res) => {
 
     try {
         const response = await axios.get(
-            `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(q)}`);
+            `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(q)}`,
+            {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/json',
+                    'Referer': 'https://jisho.org/'
+                }
+            }
+        );
             const data = response.data;
 
             //extract kanji from rewsults
@@ -151,6 +159,9 @@ app.get('/api/kanji/search', async (req, res) => {
                     }
                 }
             }
+            if(kanji.length === 0) {
+                return res.json([]);
+            }
             res.json(kanji.slice(0,10));
         } catch (err) {
             console.error('Search error:', err.message);
@@ -161,13 +172,13 @@ app.get('/api/kanji/search', async (req, res) => {
 app.get('/api/kanji/strokes/:char', async (req, res) => {
     const char = req.params.char;
     const codePoint = char.codePointAt(0).toString(16).padStart(5, '0');
+    const url = `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${codePoint}.svg`;
+    
+    console.log('Fetching strokes for:', char, 'codepoint:', codePoint, 'url:',url);
 
     try {
-        const response = await axios.get(
-            `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${codePoint}.svg`
-        );
-        
-        res.type('text/plain').send(svg);
+        const response = await axios.get(url);
+        res.type('text/plain').send(response.data);
     } catch (err) {
         res.status(500).json({error: 'Failed to fetch stroke data' });
     }

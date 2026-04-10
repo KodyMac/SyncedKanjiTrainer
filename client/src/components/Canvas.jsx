@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import GhostCanvas from './GhostCanvas';
 
-export default function Canvas({ roomId, userColor }) {
+export default function Canvas({ roomId, userColor, kanjiChar }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const isDrawing = useRef(false);
@@ -12,6 +12,14 @@ export default function Canvas({ roomId, userColor }) {
     const [kanji, setKanji] = useState(null);
     const [currentStroke, setCurrentStroke] = useState(0);
     const [totalStrokes, setTotalStrokes] = useState(0);
+
+    useEffect(() => {
+        if(kanjiChar) {
+            console.log('Canvas received kanji:', kanjiChar);
+            setKanji(kanjiChar);
+            setCurrentStroke(0);
+        }
+    }, [kanjiChar]);
 
     //draw line on canvas
     const drawSegment = useCallback((ctx, x0, y0, x1,y1,color,lineWidth, style) => {
@@ -184,7 +192,7 @@ export default function Canvas({ roomId, userColor }) {
             </div>
             <div style={{ position: 'relative', display: 'inline-block' }}>
                 <GhostCanvas
-                    kanji={kanji}
+                    kanjiChar={kanji}
                     currentSTroke={currentStroke}
                     onStrokesLoaded={(total) => setTotalStrokes(total)}
                 />
