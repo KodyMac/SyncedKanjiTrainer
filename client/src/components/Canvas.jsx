@@ -12,6 +12,7 @@ export default function Canvas({ roomId, userColor, kanjiChar }) {
     const [kanji, setKanji] = useState(null);
     const [currentStroke, setCurrentStroke] = useState(0);
     const [totalStrokes, setTotalStrokes] = useState(0);
+    const ghostCanvasRef = useRef(null);
 
     useEffect(() => {
         if(kanjiChar) {
@@ -189,9 +190,50 @@ export default function Canvas({ roomId, userColor, kanjiChar }) {
                   </button>
                 ))}
               </div>
+              
+              {/* Stroke counter */}
+{kanji && totalStrokes > 0 && (
+    <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '8px 16px', borderRadius: 8,
+        background: '#f8fafc', border: '1px solid #e5e7eb',
+        fontSize: 14, color: '#444'
+    }}>
+        <span style={{ fontSize: 22 }}>{kanji}</span>
+        <span>
+            Stroke <strong>{Math.min(currentStroke + 1, totalStrokes)}</strong> of <strong>{totalStrokes}</strong>
+        </span>
+        {currentStroke >= totalStrokes && (
+            <span style={{ color: '#22c55e', fontWeight: 500 }}>Complete!</span>
+        )}
+        <button
+            onClick={() => {
+                setCurrentStroke(0);
+                socket.emit('stroke_advance', { roomId, currentStroke: 0 });
+            }}
+            style={{
+                marginLeft: 'auto', padding: '4px 10px', borderRadius: 6,
+                border: '1px solid #e5e7eb', background: 'white',
+                cursor: 'pointer', fontSize: 12, color: '#666'
+            }}
+        >
+            Reset strokes
+        </button>
+        <button
+            onClick={() => ghostCanvasRef.current?.animate()}
+            style={{
+                padding: '4px 10px', borderRadius: 6, border:'1px solid #3b82f6', 
+                background: '#eff6ff', cursor: 'pointer', fontSize:12, color:'#3b82f6'
+            }}
+            >
+                Show Stroke Order
+            </button>
+    </div>
+)}
             </div>
             <div style={{ position: 'relative', display: 'inline-block' }}>
                 <GhostCanvas
+                    ref={ghostCanvasRef}
                     kanjiChar={kanji}
                     currentSTroke={currentStroke}
                     onStrokesLoaded={(total) => setTotalStrokes(total)}
